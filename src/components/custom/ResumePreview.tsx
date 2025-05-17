@@ -30,110 +30,179 @@ const getSanitizedHtml = (markdownText: string): string => {
   html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
 
   // Process emphasis (italic)
-  // Important: Match non-greedy, and ensure it's not part of a word like _this_is_one_
   html = html.replace(/(?<!\w)\*(.*?)\*(?!\w)/g, '<em>$1</em>');
   html = html.replace(/(?<!\w)_(.*?)_(?!\w)/g, '<em>$1</em>');
 
   return html;
 };
 
-// Basic Markdown Parser
-const parseMarkdown = (markdown: string): React.ReactNode[] => {
-  if (!markdown) return [];
 
+interface ResumeHeaderData {
+  name: string;
+  title: string;
+  location: string;
+}
+
+interface SectionData {
+  id: string;
+  title: string;
+  contentLines: string[];
+  column: 'left' | 'right';
+}
+
+const leftColumnTitles = ["SUMMARY", "MAJOR PROJECTS", "EXPERIENCE", "EDUCATION"];
+const rightColumnTitles = ["CONTACT", "CORE COMPETENCIES", "SKILLS", "AWARDS & CERTIFICATIONS", "MEMBERSHIPS", "LANGUAGES"];
+
+const parseResumeMarkdown = (markdown: string): { header: ResumeHeaderData; sections: SectionData[] } => {
   const lines = markdown.split('\n');
+  const header: ResumeHeaderData = { name: '', title: '', location: '' };
+  const sections: SectionData[] = [];
+  let currentSection: SectionData | null = null;
+  let lineIndex = 0;
+
+  // Parse Header
+  if (lines.length > 0 && lines[lineIndex].startsWith('# ')) {
+    header.name = lines[lineIndex].substring(2).trim();
+    lineIndex++;
+  }
+  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ')) {
+    header.title = lines[lineIndex].trim();
+    lineIndex++;
+  }
+  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ')) {
+    header.location = lines[lineIndex].trim();
+    lineIndex++;
+  }
+
+
+  for (; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex];
+    if (line.startsWith('## ')) {
+      if (currentSection) {
+        sections.push(currentSection);
+      }
+      const title = line.substring(3).trim().toUpperCase();
+      const column = leftColumnTitles.includes(title) ? 'left' : (rightColumnTitles.includes(title) ? 'right' : 'left');
+      currentSection = { id: title.toLowerCase().replace(/\s+/g, '-'), title, contentLines: [], column };
+    } else if (currentSection && line.trim() !== '') {
+      currentSection.contentLines.push(line);
+    } else if (currentSection && line.trim() === '' && currentSection.contentLines.length > 0 && currentSection.contentLines[currentSection.contentLines.length -1].trim() !== '') {
+      // Allow one blank line within a section for paragraph breaks if needed, by pushing an empty string.
+      currentSection.contentLines.push('');
+    }
+  }
+
+  if (currentSection) {
+    sections.push(currentSection);
+  }
+  return { header, sections };
+};
+
+const RenderSectionContent: React.FC<{ section: SectionData }> = ({ section }) => {
   const elements: React.ReactNode[] = [];
-  let currentKey = 0;
-  let inList = false;
+  let keyCounter = 0;
   let listItems: React.ReactNode[] = [];
-  let isFirstH1 = true;
 
   const flushList = () => {
     if (listItems.length > 0) {
-      elements.push(<ul key={`ul-${currentKey++}`} className="list-disc pl-5 my-2 space-y-1 text-sm">{listItems}</ul>);
+      elements.push(<ul key={`${section.id}-ul-${keyCounter++}`} className="list-disc pl-5 space-y-1 text-sm mt-1 mb-2">{listItems}</ul>);
       listItems = [];
     }
-    inList = false;
   };
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (line.startsWith('# ')) {
+  section.contentLines.forEach(line => {
+    if (line.startsWith('### ')) {
       flushList();
-      const content = line.substring(2).trim(); // Trim content for H1
-      const htmlContent = getSanitizedHtml(content);
-      if (isFirstH1) {
-        elements.push(<h1 key={currentKey++} className="text-3xl font-bold text-primary text-center mb-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
-        isFirstH1 = false;
-        // Check for contact info on the next line (heuristic)
-        if (i + 1 < lines.length && (lines[i+1].includes('|') || lines[i+1].includes('@') || lines[i+1].match(/\(\d{3}\)/) )) {
-          const contactLineRaw = lines[i+1];
-          const contactHtml = getSanitizedHtml(contactLineRaw);
-          elements.push(<p key={`contact-${currentKey++}`} className="text-xs text-muted-foreground text-center mb-6" dangerouslySetInnerHTML={{ __html: contactHtml }} />);
-          i++;
-        }
-      } else {
-        // Treat subsequent single # as H2 for section titles (e.g. if user accidentally types # instead of ##)
-        const h2Content = line.substring(2).trim(); // Trim content
-        const h2HtmlContent = getSanitizedHtml(h2Content);
-        elements.push(<h2 key={currentKey++} className="text-lg font-semibold text-primary uppercase tracking-wide mt-8 mb-3 border-b-2 border-primary pb-1.5" dangerouslySetInnerHTML={{ __html: h2HtmlContent }} />);
-      }
-    } else if (line.startsWith('## ')) {
-      flushList();
-      const content = line.substring(3).trim(); // Trim content for H2
-      const htmlContent = getSanitizedHtml(content);
-      elements.push(<h2 key={currentKey++} className="text-lg font-semibold text-primary uppercase tracking-wide mt-8 mb-3 border-b-2 border-primary pb-1.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
-    } else if (line.startsWith('### ')) {
-      flushList();
-      const rawContent = line.substring(4).trim(); // Trim content for H3
+      const rawContent = line.substring(4).trim();
       const parts = rawContent.split('|').map(s => s.trim());
+      const titleHtml = getSanitizedHtml(parts[0]);
+      const detailsHtml = parts.length > 1 ? getSanitizedHtml(parts.slice(1).join(' | ')) : '';
 
-      if (parts.length >= 2) { // Typically "Title | Context/Details"
-        const titleHtml = getSanitizedHtml(parts[0]);
-        const detailsHtml = getSanitizedHtml(parts.slice(1).join(' | '));
-        elements.push(
-          <div key={currentKey++} className="mt-4 mb-2">
-            <span className="block text-md font-semibold text-foreground" dangerouslySetInnerHTML={{ __html: titleHtml }} />
-            <span className="block text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: detailsHtml }} />
-          </div>
-        );
-      } else { // Single entry H3
-        const htmlContent = getSanitizedHtml(rawContent);
-        elements.push(<h3 key={currentKey++} className="text-md font-semibold text-foreground mt-4 mb-2" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
-      }
+      elements.push(
+        <div key={`${section.id}-h3-${keyCounter++}`} className="mt-3 mb-0.5">
+          <h3 className="text-md font-semibold text-foreground" dangerouslySetInnerHTML={{ __html: titleHtml }} />
+          {detailsHtml && <p className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: detailsHtml }} />}
+        </div>
+      );
     } else if (line.startsWith('- ') || line.startsWith('* ')) {
-      if (!inList) inList = true;
-      const content = line.substring(2);
-      const htmlContent = getSanitizedHtml(content);
-      listItems.push(<li key={`li-${currentKey++}-${listItems.length}`} className="text-sm leading-relaxed text-foreground" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+      const content = getSanitizedHtml(line.substring(2));
+      listItems.push(<li key={`${section.id}-li-${keyCounter++}-${listItems.length}`} className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: content }} />);
+    } else if (section.title === "SKILLS" && line.includes(':')) {
+      flushList();
+      const [category, skillsString] = line.split(/:(.*)/s);
+      const categoryHtml = getSanitizedHtml(category.trim());
+      const skillsHtml = getSanitizedHtml(skillsString.trim());
+      elements.push(
+        <p key={`${section.id}-skill-${keyCounter++}`} className="text-sm my-1">
+          <strong dangerouslySetInnerHTML={{__html: categoryHtml}}>:</strong>
+          <span className="text-muted-foreground" dangerouslySetInnerHTML={{__html: ` ${skillsHtml}`}}></span>
+        </p>
+      );
+    } else if (section.title === "CONTACT") {
+        flushList();
+        const contentHtml = getSanitizedHtml(line);
+        elements.push(<p key={`${section.id}-contact-${keyCounter++}`} className="text-sm text-muted-foreground my-0.5" dangerouslySetInnerHTML={{ __html: contentHtml }} />);
     } else if (line.trim() === '') {
+      // Handles deliberate paragraph breaks within a section.
       flushList();
-      // Add a spacer div for blank lines, but not multiple consecutive ones without content
-      if (elements.length > 0 && elements[elements.length-1].type !== 'div' && (elements[elements.length-1] as React.ReactElement).key?.toString().startsWith('spacer-') === false) {
-         elements.push(<div key={`spacer-${currentKey++}`} className="h-2" />);
+       if (elements.length > 0 && elements[elements.length-1].type !== 'div' && (elements[elements.length-1] as React.ReactElement).key?.toString().startsWith('spacer-') === false) {
+         elements.push(<div key={`spacer-${keyCounter++}`} className="h-1" />); // smaller spacer for paragraphs
       }
-    } else {
-      flushList();
-      const htmlContent = getSanitizedHtml(line);
-      elements.push(<p key={currentKey++} className="my-2 text-sm text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     }
-  }
-  flushList(); // Ensure any trailing list items are rendered
+     else {
+      flushList();
+      const contentHtml = getSanitizedHtml(line);
+      elements.push(<p key={`${section.id}-p-${keyCounter++}`} className="text-sm my-2 leading-relaxed" dangerouslySetInnerHTML={{ __html: contentHtml }} />);
+    }
+  });
 
-  return elements;
+  flushList(); // Final flush for any trailing list
+
+  return (
+    <div className="mb-4">
+      <h2 className="text-sm font-semibold text-primary uppercase tracking-wider border-b-2 border-primary pb-1 mb-2">
+        {section.title}
+      </h2>
+      {elements}
+    </div>
+  );
 };
 
 
 export function ResumePreview({ markdown }: ResumePreviewProps) {
-  const content = parseMarkdown(markdown);
+  const { header, sections } = parseResumeMarkdown(markdown);
+
+  const leftSections = sections.filter(s => s.column === 'left');
+  const rightSections = sections.filter(s => s.column === 'right');
 
   return (
-    <ScrollArea className="h-[calc(100vh-300px)] sm:h-[calc(100vh-250px)] border rounded-md shadow-inner p-6 bg-card">
-      <div className="max-w-2xl mx-auto text-foreground">
-        {content.length > 0 ? content : <p className="text-muted-foreground">Your resume preview will appear here.</p>}
+    <ScrollArea className="h-[calc(100vh-300px)] sm:h-[calc(100vh-250px)] border rounded-md shadow-inner bg-card">
+      <div className="max-w-4xl mx-auto p-6 md:p-8 text-foreground font-sans">
+        {/* Header */}
+        <div className="text-center mb-6 md:mb-8">
+          {header.name && <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-1" dangerouslySetInnerHTML={{ __html: getSanitizedHtml(header.name) }} />}
+          {header.title && <p className="text-md md:text-lg text-muted-foreground" dangerouslySetInnerHTML={{ __html: getSanitizedHtml(header.title) }} />}
+          {header.location && <p className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: getSanitizedHtml(header.location) }} />}
+        </div>
+
+        {/* Main Content - Two Columns */}
+        <div className="flex flex-col md:flex-row md:gap-x-8 lg:gap-x-12">
+          {/* Left Column */}
+          <div className="w-full md:w-[65%] space-y-3">
+            {leftSections.map(section => (
+              <RenderSectionContent key={section.id} section={section} />
+            ))}
+          </div>
+
+          {/* Right Column */}
+          <div className="w-full md:w-[35%] space-y-3 mt-6 md:mt-0">
+            {rightSections.map(section => (
+              <RenderSectionContent key={section.id} section={section} />
+            ))}
+          </div>
+        </div>
+        {(!leftSections.length && !rightSections.length && !header.name) && <p className="text-muted-foreground text-center">Your resume preview will appear here. Start typing in the editor.</p>}
       </div>
     </ScrollArea>
   );
 }
-

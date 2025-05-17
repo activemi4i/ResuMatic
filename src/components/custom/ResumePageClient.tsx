@@ -1,7 +1,8 @@
+
 "use client";
 
 import type * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { optimizeResume } from '@/ai/flows/optimize-resume.ts';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,10 +16,23 @@ import { Wand2, Loader2 } from 'lucide-react';
 
 const defaultResumeMarkdown = `
 # John Doe
-john.doe@email.com | (555) 123-4567 | linkedin.com/in/johndoe
+Engineer | Tech Lead | 11+ Building Scalable Apps & SDKs
+Canada Resident
 
 ## Summary
-A highly motivated software engineer with 5 years of experience in web development, specializing in React and Node.js. Proven ability to design, develop, and deploy scalable applications.
+A highly motivated and results-oriented Senior Software Engineer with over 11 years of experience in designing, developing, and deploying scalable mobile and web applications. Proven ability to lead engineering teams, drive technical architecture, and deliver high-quality software products. Expertise in React Native, iOS (Swift, Objective-C), Android (Kotlin, Java), and full-stack development. Strong advocate for best practices, code quality, and agile methodologies.
+
+## Major Projects
+
+### Myav App (UK) | Some Company | Jan 2022 - Present
+- Led development of a cross-platform app for insurance services using React Native.
+- Integrated Apple Pay and Google Pay for seamless premium payments.
+- Improved app performance by 25% through targeted optimizations.
+
+### Pawo App (Singapore) | Another Company | May 2020 - Dec 2021
+- Developed a native iOS fitness tracking application using Swift and Combine.
+- Architected real-time data synchronization with a backend powered by Firebase.
+- Achieved a 4.5-star rating on the App Store through user-centric design and features.
 
 ## Experience
 
@@ -26,6 +40,7 @@ A highly motivated software engineer with 5 years of experience in web developme
 - Led a team of 5 engineers in developing a new SaaS platform, resulting in a 20% increase in user engagement.
 - Architected and implemented microservices using Node.js, TypeScript, and Docker.
 - Optimized application performance, reducing P95 latency by 30%.
+- Mentored junior engineers, fostering a culture of growth and collaboration.
 
 ### Software Engineer | Tech Solutions Ltd. | 2019 - 2021
 - Developed responsive user interfaces with React, Redux, and Tailwind CSS.
@@ -36,26 +51,49 @@ A highly motivated software engineer with 5 years of experience in web developme
 
 ### M.S. in Computer Science | Stanford University | 2017 - 2019
 - Specialization: Artificial Intelligence
+- Thesis: "Advanced Machine Learning Techniques for Mobile Platforms"
 
 ### B.S. in Software Engineering | MIT | 2013 - 2017
-- Graduated with Honors
+- Graduated with Honors, Capstone Project on Cross-Platform Development
+
+## Contact
+johndoe@email.com
+(555) 123-4567
+linkedin.com/in/johndoe
+github.com/johndoe
+Canada
+
+## Core Competencies
+- Mobile Development (iOS, Android, React Native)
+- Full-Stack Web Development (React, Node.js)
+- Software Architecture & Design Patterns
+- Agile Methodologies & Scrum
+- Team Leadership & Mentoring
+- CI/CD & DevOps Practices
+- Cloud Platforms (AWS, Firebase)
+- UI/UX Design Principles
+- Test-Driven Development (TDD)
+- Version Control (Git)
 
 ## Skills
+Languages: Swift, Objective-C, Kotlin, Java, TypeScript, JavaScript, Python
+Frameworks: React Native, React, Node.js, Express.js, SwiftUI, UIKit, Jetpack Compose
+Databases: PostgreSQL, MongoDB, Firebase Firestore, Realm
+Tools: Xcode, Android Studio, VS Code, Docker, Jenkins, Git, Jira
+Platforms: iOS, Android, Web, AWS, Google Cloud
 
-- **Programming Languages:** JavaScript, TypeScript, Python, Java
-- **Frameworks/Libraries:** React, Node.js, Express.js, Next.js, Redux, Zustand
-- **Databases:** PostgreSQL, MongoDB, Redis
-- **Tools & Platforms:** Docker, Kubernetes, AWS (EC2, S3, Lambda), Git, Jenkins
-- **Methodologies:** Agile, Scrum, TDD
+## Awards & Certifications
+### Apple Design Award Nominee | Apple | 2023
+- For outstanding UI/UX in the Myav App.
+### Certified Scrum Master (CSM) | Scrum Alliance | 2020
 
-## Projects
+## Memberships
+- IEEE Computer Society
+- ACM (Association for Computing Machinery)
 
-### Personal Portfolio Website
-- Developed a responsive personal portfolio using Next.js and deployed on Vercel.
-- Showcases projects and skills with a clean, modern design.
-
-### E-commerce Platform (Side Project)
-- Built a full-stack e-commerce application with user authentication, product listings, and payment integration.
+## Languages
+English: Native Proficiency
+French: Basic Proficiency
 `;
 
 export function ResumePageClient() {
@@ -63,7 +101,13 @@ export function ResumePageClient() {
   const [jobDescription, setJobDescription] = useState<string>('');
   const [optimizationSuggestions, setOptimizationSuggestions] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
 
   const handleOptimizeResume = async () => {
     if (!jobDescription.trim()) {
@@ -151,7 +195,7 @@ export function ResumePageClient() {
       </main>
       <footer className="py-4 border-t bg-card">
         <div className="container mx-auto text-center text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} ResuMatic. All rights reserved.
+          &copy; {currentYear !== null ? currentYear : '...'} ResuMatic. All rights reserved.
         </div>
       </footer>
     </>
