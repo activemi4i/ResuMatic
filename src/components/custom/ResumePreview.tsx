@@ -10,6 +10,9 @@ interface ResumePreviewProps {
 
 // Helper function to escape HTML characters
 const escapeHtml = (unsafe: string): string => {
+  if (typeof unsafe !== 'string') {
+    return '';
+  }
   return unsafe
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -20,16 +23,17 @@ const escapeHtml = (unsafe: string): string => {
 
 // Helper function to convert simple Markdown (bold, italic) to sanitized HTML
 const getSanitizedHtml = (markdownText: string): string => {
-  let html = markdownText;
+  let html = escapeHtml(markdownText); // Escape first
 
-  // Process strong (bold) first
-  html = html.replace(/\*\*(.*?)\*\*/g, (_match, content) => `<strong>${escapeHtml(content)}</strong>`);
-  html = html.replace(/__(.*?)__/g, (_match, content) => `<strong>${escapeHtml(content)}</strong>`);
+  // Process strong (bold)
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
 
   // Process emphasis (italic)
-  html = html.replace(/\*(.*?)\*/g, (_match, content) => `<em>${escapeHtml(content)}</em>`);
-  // Using a simple version for underscore italics; assumes it's not mixed with internal underscores in variable names.
-  html = html.replace(/_(.*?)_/g, (_match, content) => `<em>${escapeHtml(content)}</em>`);
+  // Important: Match non-greedy, and ensure it's not part of a word like _this_is_one_
+  // This regex is a bit simplified; a full Markdown parser is more complex.
+  html = html.replace(/(?<!\w)\*(.*?)\*(?!\w)/g, '<em>$1</em>');
+  html = html.replace(/(?<!\w)_(.*?)_(?!\w)/g, '<em>$1</em>');
 
   return html;
 };
@@ -43,11 +47,11 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
   let currentKey = 0;
   let inList = false;
   let listItems: React.ReactNode[] = [];
-  let isFirstH1 = true; 
+  let isFirstH1 = true;
 
   const flushList = () => {
     if (listItems.length > 0) {
-      elements.push(<ul key={`ul-${currentKey++}`} className="list-disc pl-6 my-3 space-y-1.5 text-sm text-foreground">{listItems}</ul>);
+      elements.push(<ul key={`ul-${currentKey++}`} className="list-disc pl-5 my-2 space-y-1 text-sm">{listItems}</ul>);
       listItems = [];
     }
     inList = false;
@@ -68,38 +72,52 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
           const contactLineRaw = lines[i+1];
           const contactHtml = getSanitizedHtml(contactLineRaw);
           elements.push(<p key={`contact-${currentKey++}`} className="text-xs text-muted-foreground text-center mb-6" dangerouslySetInnerHTML={{ __html: contactHtml }} />);
-          i++; 
+          i++;
         }
       } else {
-        elements.push(<h1 key={currentKey++} className="text-2xl font-bold text-primary mt-6 mb-3 border-b border-border pb-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+        // Treat subsequent # as H2 for section titles
+        elements.push(<h2 key={currentKey++} className="text-lg font-semibold text-primary uppercase tracking-wide mt-8 mb-3 border-b-2 border-primary pb-1.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
       }
     } else if (line.startsWith('## ')) {
       flushList();
       const content = line.substring(3);
       const htmlContent = getSanitizedHtml(content);
-      elements.push(<h2 key={currentKey++} className="text-xl font-semibold text-primary mt-5 mb-2.5 border-b border-border pb-1.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+      elements.push(<h2 key={currentKey++} className="text-lg font-semibold text-primary uppercase tracking-wide mt-8 mb-3 border-b-2 border-primary pb-1.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     } else if (line.startsWith('### ')) {
       flushList();
-      const content = line.substring(4);
-      const htmlContent = getSanitizedHtml(content);
-      elements.push(<h3 key={currentKey++} className="text-base font-medium text-foreground mt-3 mb-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+      const rawContent = line.substring(4);
+      const parts = rawContent.split('|').map(s => s.trim());
+
+      if (parts.length >= 2) { // Typically "Title | Context/Details"
+        const titleHtml = getSanitizedHtml(parts[0]);
+        const detailsHtml = getSanitizedHtml(parts.slice(1).join(' | '));
+        elements.push(
+          <div key={currentKey++} className="mt-4 mb-2">
+            <span className="block text-md font-semibold text-foreground" dangerouslySetInnerHTML={{ __html: titleHtml }} />
+            <span className="block text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: detailsHtml }} />
+          </div>
+        );
+      } else { // Single entry H3
+        const htmlContent = getSanitizedHtml(rawContent);
+        elements.push(<h3 key={currentKey++} className="text-md font-semibold text-foreground mt-4 mb-2" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+      }
     } else if (line.startsWith('- ') || line.startsWith('* ')) {
       if (!inList) inList = true;
       const content = line.substring(2);
       const htmlContent = getSanitizedHtml(content);
-      listItems.push(<li key={`li-${currentKey++}-${listItems.length}`} className="text-sm leading-relaxed pb-0.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+      listItems.push(<li key={`li-${currentKey++}-${listItems.length}`} className="text-sm leading-relaxed text-foreground" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     } else if (line.trim() === '') {
       flushList();
-      if (elements.length > 0 && elements[elements.length-1].type !== 'div') {
-         elements.push(<div key={`spacer-${currentKey++}`} className="h-1" />); // Reduced spacer
+      if (elements.length > 0 && elements[elements.length-1].type !== 'div' && (elements[elements.length-1] as React.ReactElement).key?.toString().startsWith('spacer-') === false) {
+         elements.push(<div key={`spacer-${currentKey++}`} className="h-2" />);
       }
     } else {
       flushList();
       const htmlContent = getSanitizedHtml(line);
-      elements.push(<p key={currentKey++} className="my-1 text-sm text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+      elements.push(<p key={currentKey++} className="my-2 text-sm text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     }
   }
-  flushList(); 
+  flushList();
 
   return elements;
 };
@@ -110,10 +128,9 @@ export function ResumePreview({ markdown }: ResumePreviewProps) {
 
   return (
     <ScrollArea className="h-[calc(100vh-300px)] sm:h-[calc(100vh-250px)] border rounded-md shadow-inner p-6 bg-card">
-      <div className="max-w-2xl mx-auto text-foreground prose-sm prose-p:my-1 prose-li:my-0.5">
+      <div className="max-w-2xl mx-auto text-foreground">
         {content.length > 0 ? content : <p className="text-muted-foreground">Your resume preview will appear here.</p>}
       </div>
     </ScrollArea>
   );
 }
-
