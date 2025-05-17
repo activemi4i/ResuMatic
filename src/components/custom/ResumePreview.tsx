@@ -8,6 +8,32 @@ interface ResumePreviewProps {
   markdown: string;
 }
 
+// Helper function to escape HTML characters
+const escapeHtml = (unsafe: string): string => {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+// Helper function to convert simple Markdown (bold, italic) to sanitized HTML
+const getSanitizedHtml = (markdownText: string): string => {
+  let html = markdownText;
+
+  // Process strong (bold) first
+  html = html.replace(/\*\*(.*?)\*\*/g, (_match, content) => `<strong>${escapeHtml(content)}</strong>`);
+  html = html.replace(/__(.*?)__/g, (_match, content) => `<strong>${escapeHtml(content)}</strong>`);
+
+  // Process emphasis (italic)
+  html = html.replace(/\*(.*?)\*/g, (_match, content) => `<em>${escapeHtml(content)}</em>`);
+  // Using a simple version for underscore italics; assumes it's not mixed with internal underscores in variable names.
+  html = html.replace(/_(.*?)_/g, (_match, content) => `<em>${escapeHtml(content)}</em>`);
+
+  return html;
+};
+
 // Basic Markdown Parser
 const parseMarkdown = (markdown: string): React.ReactNode[] => {
   if (!markdown) return [];
@@ -17,11 +43,11 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
   let currentKey = 0;
   let inList = false;
   let listItems: React.ReactNode[] = [];
-  let isFirstH1 = true; // To identify the first H1 as the name
+  let isFirstH1 = true; 
 
   const flushList = () => {
     if (listItems.length > 0) {
-      elements.push(<ul key={`ul-${currentKey++}`} className="list-disc pl-6 my-2 space-y-1 text-sm text-foreground">{listItems}</ul>);
+      elements.push(<ul key={`ul-${currentKey++}`} className="list-disc pl-6 my-3 space-y-1.5 text-sm text-foreground">{listItems}</ul>);
       listItems = [];
     }
     inList = false;
@@ -29,73 +55,51 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    let processedLineHtml = line;
-
-    // Bold and Italic (simple regex, might not cover all cases)
-    processedLineHtml = processedLineHtml
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/__(.*?)__/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/_(.*?)_/g, '<em>$1</em>');
-    
-    // Escape HTML to prevent XSS, but allow strong/em
-    const escapeHtml = (unsafe: string) => {
-        return unsafe
-             .replace(/&/g, "&amp;")
-             .replace(/</g, "&lt;")
-             .replace(/>/g, "&gt;")
-             .replace(/"/g, "&quot;")
-             .replace(/'/g, "&#039;");
-    };
-    
-    // Re-apply strong and em after escaping
-    processedLineHtml = escapeHtml(line)
-      .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/g, '<strong>$1</strong>')
-      .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/g, '<em>$1</em>');
-
 
     if (line.startsWith('# ')) {
       flushList();
+      const content = line.substring(2);
+      const htmlContent = getSanitizedHtml(content);
       if (isFirstH1) {
-        elements.push(<h1 key={currentKey++} className="text-3xl font-bold text-primary text-center mb-1" dangerouslySetInnerHTML={{ __html: processedLineHtml.substring(2) }} />);
+        elements.push(<h1 key={currentKey++} className="text-3xl font-bold text-primary text-center mb-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
         isFirstH1 = false;
-        // Check for contact info on the next line
+        // Check for contact info on the next line (heuristic)
         if (i + 1 < lines.length && (lines[i+1].includes('|') || lines[i+1].includes('@') || lines[i+1].match(/\(\d{3}\)/) )) {
-          const contactLine = lines[i+1];
-          let escapedContactLine = escapeHtml(contactLine)
-            .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/g, '<strong>$1</strong>')
-            .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/g, '<em>$1</em>');
-          elements.push(<p key={`contact-${currentKey++}`} className="text-sm text-muted-foreground text-center mb-6" dangerouslySetInnerHTML={{ __html: escapedContactLine }} />);
-          i++; // Increment i to skip processing contact line in the next iteration
+          const contactLineRaw = lines[i+1];
+          const contactHtml = getSanitizedHtml(contactLineRaw);
+          elements.push(<p key={`contact-${currentKey++}`} className="text-xs text-muted-foreground text-center mb-6" dangerouslySetInnerHTML={{ __html: contactHtml }} />);
+          i++; 
         }
       } else {
-        // Subsequent H1s, treat as large section titles (though uncommon in resumes)
-        elements.push(<h1 key={currentKey++} className="text-2xl font-bold text-primary mt-6 mb-3 border-b border-border pb-1" dangerouslySetInnerHTML={{ __html: processedLineHtml.substring(2) }} />);
+        elements.push(<h1 key={currentKey++} className="text-2xl font-bold text-primary mt-6 mb-3 border-b border-border pb-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
       }
     } else if (line.startsWith('## ')) {
       flushList();
-      elements.push(<h2 key={currentKey++} className="text-xl font-semibold text-primary mt-6 mb-2 border-b border-border pb-1" dangerouslySetInnerHTML={{ __html: processedLineHtml.substring(3) }} />);
+      const content = line.substring(3);
+      const htmlContent = getSanitizedHtml(content);
+      elements.push(<h2 key={currentKey++} className="text-xl font-semibold text-primary mt-5 mb-2.5 border-b border-border pb-1.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     } else if (line.startsWith('### ')) {
       flushList();
-      elements.push(<h3 key={currentKey++} className="text-lg font-medium text-foreground mt-4 mb-1" dangerouslySetInnerHTML={{ __html: processedLineHtml.substring(4) }} />);
+      const content = line.substring(4);
+      const htmlContent = getSanitizedHtml(content);
+      elements.push(<h3 key={currentKey++} className="text-base font-medium text-foreground mt-3 mb-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     } else if (line.startsWith('- ') || line.startsWith('* ')) {
       if (!inList) inList = true;
-      listItems.push(<li key={`li-${currentKey++}-${listItems.length}`} className="text-sm" dangerouslySetInnerHTML={{ __html: processedLineHtml.substring(2) }} />);
+      const content = line.substring(2);
+      const htmlContent = getSanitizedHtml(content);
+      listItems.push(<li key={`li-${currentKey++}-${listItems.length}`} className="text-sm leading-relaxed pb-0.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     } else if (line.trim() === '') {
       flushList();
-      // Represent paragraph breaks, but avoid excessive empty divs if not needed.
-      // For Markdown, consecutive newlines create a paragraph break. A single div for spacing might be enough.
       if (elements.length > 0 && elements[elements.length-1].type !== 'div') {
-         elements.push(<div key={`spacer-${currentKey++}`} className="h-2" />);
+         elements.push(<div key={`spacer-${currentKey++}`} className="h-1" />); // Reduced spacer
       }
     } else {
       flushList();
-      // Heuristic: if it's the line after H1 and we didn't catch it as contact, it's just a paragraph.
-      // This was handled by the H1 block already.
-      elements.push(<p key={currentKey++} className="my-1.5 text-sm text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: processedLineHtml }} />);
+      const htmlContent = getSanitizedHtml(line);
+      elements.push(<p key={currentKey++} className="my-1 text-sm text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     }
   }
-  flushList(); // Ensure any pending list is flushed
+  flushList(); 
 
   return elements;
 };
@@ -105,10 +109,11 @@ export function ResumePreview({ markdown }: ResumePreviewProps) {
   const content = parseMarkdown(markdown);
 
   return (
-    <ScrollArea className="h-[calc(100vh-300px)] sm:h-[calc(100vh-250px)] border rounded-md shadow-sm p-6 bg-card">
-      <div className="max-w-none text-foreground">
+    <ScrollArea className="h-[calc(100vh-300px)] sm:h-[calc(100vh-250px)] border rounded-md shadow-inner p-6 bg-card">
+      <div className="max-w-2xl mx-auto text-foreground prose-sm prose-p:my-1 prose-li:my-0.5">
         {content.length > 0 ? content : <p className="text-muted-foreground">Your resume preview will appear here.</p>}
       </div>
     </ScrollArea>
   );
 }
+
