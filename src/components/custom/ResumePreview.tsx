@@ -65,11 +65,11 @@ const parseResumeMarkdown = (markdown: string): { header: ResumeHeaderData; sect
     header.name = lines[lineIndex].substring(2).trim();
     lineIndex++;
   }
-  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ')) {
+  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ') && !lines[lineIndex].startsWith('# ')) {
     header.title = lines[lineIndex].trim();
     lineIndex++;
   }
-  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ')) {
+  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ') && !lines[lineIndex].startsWith('# ')) {
     header.location = lines[lineIndex].trim();
     lineIndex++;
   }
@@ -134,8 +134,9 @@ const RenderSectionContent: React.FC<{ section: SectionData }> = ({ section }) =
       const skillsHtml = getSanitizedHtml(skillsString.trim());
       elements.push(
         <p key={`${section.id}-skill-${keyCounter++}`} className="text-sm my-1">
-          <strong dangerouslySetInnerHTML={{__html: categoryHtml}}>:</strong>
-          <span className="text-muted-foreground" dangerouslySetInnerHTML={{__html: ` ${skillsHtml}`}}></span>
+          <strong dangerouslySetInnerHTML={{__html: categoryHtml}}></strong>
+          {': '}
+          <span className="text-muted-foreground" dangerouslySetInnerHTML={{__html: skillsHtml}}></span>
         </p>
       );
     } else if (section.title === "CONTACT") {
@@ -143,10 +144,9 @@ const RenderSectionContent: React.FC<{ section: SectionData }> = ({ section }) =
         const contentHtml = getSanitizedHtml(line);
         elements.push(<p key={`${section.id}-contact-${keyCounter++}`} className="text-sm text-muted-foreground my-0.5" dangerouslySetInnerHTML={{ __html: contentHtml }} />);
     } else if (line.trim() === '') {
-      // Handles deliberate paragraph breaks within a section.
       flushList();
-       if (elements.length > 0 && elements[elements.length-1].type !== 'div' && (elements[elements.length-1] as React.ReactElement).key?.toString().startsWith('spacer-') === false) {
-         elements.push(<div key={`spacer-${keyCounter++}`} className="h-1" />); // smaller spacer for paragraphs
+       if (elements.length > 0 && elements[elements.length-1] && (elements[elements.length-1] as React.ReactElement).type !== 'div' && (elements[elements.length-1] as React.ReactElement).key?.toString().startsWith('spacer-') === false) {
+         elements.push(<div key={`spacer-${keyCounter++}`} className="h-1" />); 
       }
     }
      else {
@@ -206,3 +206,4 @@ export function ResumePreview({ markdown }: ResumePreviewProps) {
     </ScrollArea>
   );
 }
+
