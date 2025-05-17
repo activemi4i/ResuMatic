@@ -31,7 +31,6 @@ const getSanitizedHtml = (markdownText: string): string => {
 
   // Process emphasis (italic)
   // Important: Match non-greedy, and ensure it's not part of a word like _this_is_one_
-  // This regex is a bit simplified; a full Markdown parser is more complex.
   html = html.replace(/(?<!\w)\*(.*?)\*(?!\w)/g, '<em>$1</em>');
   html = html.replace(/(?<!\w)_(.*?)_(?!\w)/g, '<em>$1</em>');
 
@@ -62,7 +61,7 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
 
     if (line.startsWith('# ')) {
       flushList();
-      const content = line.substring(2);
+      const content = line.substring(2).trim(); // Trim content for H1
       const htmlContent = getSanitizedHtml(content);
       if (isFirstH1) {
         elements.push(<h1 key={currentKey++} className="text-3xl font-bold text-primary text-center mb-1" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
@@ -75,17 +74,19 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
           i++;
         }
       } else {
-        // Treat subsequent # as H2 for section titles
-        elements.push(<h2 key={currentKey++} className="text-lg font-semibold text-primary uppercase tracking-wide mt-8 mb-3 border-b-2 border-primary pb-1.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
+        // Treat subsequent single # as H2 for section titles (e.g. if user accidentally types # instead of ##)
+        const h2Content = line.substring(2).trim(); // Trim content
+        const h2HtmlContent = getSanitizedHtml(h2Content);
+        elements.push(<h2 key={currentKey++} className="text-lg font-semibold text-primary uppercase tracking-wide mt-8 mb-3 border-b-2 border-primary pb-1.5" dangerouslySetInnerHTML={{ __html: h2HtmlContent }} />);
       }
     } else if (line.startsWith('## ')) {
       flushList();
-      const content = line.substring(3);
+      const content = line.substring(3).trim(); // Trim content for H2
       const htmlContent = getSanitizedHtml(content);
       elements.push(<h2 key={currentKey++} className="text-lg font-semibold text-primary uppercase tracking-wide mt-8 mb-3 border-b-2 border-primary pb-1.5" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     } else if (line.startsWith('### ')) {
       flushList();
-      const rawContent = line.substring(4);
+      const rawContent = line.substring(4).trim(); // Trim content for H3
       const parts = rawContent.split('|').map(s => s.trim());
 
       if (parts.length >= 2) { // Typically "Title | Context/Details"
@@ -108,6 +109,7 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
       listItems.push(<li key={`li-${currentKey++}-${listItems.length}`} className="text-sm leading-relaxed text-foreground" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     } else if (line.trim() === '') {
       flushList();
+      // Add a spacer div for blank lines, but not multiple consecutive ones without content
       if (elements.length > 0 && elements[elements.length-1].type !== 'div' && (elements[elements.length-1] as React.ReactElement).key?.toString().startsWith('spacer-') === false) {
          elements.push(<div key={`spacer-${currentKey++}`} className="h-2" />);
       }
@@ -117,7 +119,7 @@ const parseMarkdown = (markdown: string): React.ReactNode[] => {
       elements.push(<p key={currentKey++} className="my-2 text-sm text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: htmlContent }} />);
     }
   }
-  flushList();
+  flushList(); // Ensure any trailing list items are rendered
 
   return elements;
 };
@@ -134,3 +136,4 @@ export function ResumePreview({ markdown }: ResumePreviewProps) {
     </ScrollArea>
   );
 }
+
