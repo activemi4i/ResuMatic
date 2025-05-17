@@ -54,22 +54,22 @@ const leftColumnTitles = ["SUMMARY", "MAJOR PROJECTS", "EXPERIENCE", "EDUCATION"
 const rightColumnTitles = ["CONTACT", "CORE COMPETENCIES", "SKILLS", "AWARDS & CERTIFICATIONS", "MEMBERSHIPS", "LANGUAGES"];
 
 const parseResumeMarkdown = (markdown: string): { header: ResumeHeaderData; sections: SectionData[] } => {
-  const lines = markdown.split('\n');
+  const lines = markdown.trim().split('\n'); // Trim whitespace before splitting
   const header: ResumeHeaderData = { name: '', title: '', location: '' };
   const sections: SectionData[] = [];
   let currentSection: SectionData | null = null;
   let lineIndex = 0;
 
   // Parse Header
-  if (lines.length > 0 && lines[lineIndex].startsWith('# ')) {
+  if (lines.length > lineIndex && lines[lineIndex].startsWith('# ')) {
     header.name = lines[lineIndex].substring(2).trim();
     lineIndex++;
   }
-  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ') && !lines[lineIndex].startsWith('# ')) {
+  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ') && !lines[lineIndex].startsWith('# ') && lines[lineIndex].trim() !== '') {
     header.title = lines[lineIndex].trim();
     lineIndex++;
   }
-  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ') && !lines[lineIndex].startsWith('# ')) {
+  if (lines.length > lineIndex && !lines[lineIndex].startsWith('## ') && !lines[lineIndex].startsWith('# ') && lines[lineIndex].trim() !== '') {
     header.location = lines[lineIndex].trim();
     lineIndex++;
   }
@@ -131,7 +131,7 @@ const RenderSectionContent: React.FC<{ section: SectionData }> = ({ section }) =
       flushList();
       const [category, skillsString] = line.split(/:(.*)/s);
       const categoryHtml = getSanitizedHtml(category.trim());
-      const skillsHtml = getSanitizedHtml(skillsString.trim());
+      const skillsHtml = getSanitizedHtml(skillsString ? skillsString.trim() : '');
       elements.push(
         <p key={`${section.id}-skill-${keyCounter++}`} className="text-sm my-1">
           <strong dangerouslySetInnerHTML={{__html: categoryHtml}}></strong>
@@ -201,9 +201,11 @@ export function ResumePreview({ markdown }: ResumePreviewProps) {
             ))}
           </div>
         </div>
-        {(!leftSections.length && !rightSections.length && !header.name) && <p className="text-muted-foreground text-center">Your resume preview will appear here. Start typing in the editor.</p>}
+        {(!leftSections.length && !rightSections.length && !header.name && !header.title && !header.location) && 
+         (!markdown || markdown.trim() === '' || markdown.split('\n').every(line => line.trim() === '')) &&
+         <p className="text-muted-foreground text-center">Your resume preview will appear here. Start typing in the editor.</p>
+        }
       </div>
     </ScrollArea>
   );
 }
-
